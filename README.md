@@ -1,39 +1,62 @@
-# Okakii Launcher (Windows + macOS) - NOT SHIPPED
+# Okakii Launcher
 
-Classic-style launcher window (white dialog, logo, "Connecting to Okakii ...", green progress bar).
+The launcher for [Okakii](https://okakii.lol). Press **Play** on a game at okakii.lol and the
+launcher installs (or updates) the right client and joins you into the server.
 
-## Windows - `dist/windows/OkakiiLauncher.exe`
-Same behaviour as the shipping launcher (BubbaBlox/Program.cs): okakiiclient:// registration,
-self-update, per-year client download/refresh, guard + watchdog, `-a/-j/-t` launch. Only the window
-changed. `LauncherVersion = 4`.
+<p align="center"><img src="assets/logo.png" width="96" alt="Okakii"></p>
 
-- **Look at it without installing anything:** `OkakiiLauncher.exe --preview` (window only) or
-  `OkakiiLauncher.exe --snapshot out.png`.
-- **Real test:** run it once with no arguments. Like the current launcher, it copies itself to
-  `%LOCALAPPDATA%\Okakii\OkakiiLauncher.exe` (replacing the installed one on THIS PC only), then
-  press Play on the site. To go back, re-run the old launcher from okakii.lol/download.
-- Shipping later = upload the exe to `/download/OkakiiLauncher.exe` and bump
-  `/download/OkakiiLauncher.version` to `4` (installed launchers then update themselves).
+## Download
 
-Build: `cd windows && dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ../dist/windows`
-(embeds the guard zip from `Downloads\BubbaBlox\BubbaBlox\OkakiiAntiCheat\publish`).
+Grab the latest build from the [Releases](../../releases/latest) page or from
+[okakii.lol/download](https://okakii.lol/download).
 
-## macOS - `dist/mac/OkakiiLauncher-mac-arm64.zip` (Apple Silicon) / `-x64.zip` (Intel)
-Avalonia app `Okakii.app`, ad-hoc signed. Registers `okakiiclient://` via Info.plist, so the
-existing Play button works unchanged. Only year 2021 is supported (other years show a message).
-Installs the client to `~/Library/Application Support/Okakii/Clients/2021/RobloxPlayer.app`
-(ditto unzip, `xattr -cr`, ad-hoc `codesign`) and starts it with `-ticket/-authURL/-scriptURL`.
-No guard on Mac.
+| Platform | File |
+|---|---|
+| Windows 10/11 (64-bit) | `OkakiiLauncher.exe` |
+| macOS 12+, Apple Silicon (M1 and newer) | `OkakiiLauncher-mac-arm64.zip` |
+| macOS 12+, Intel | `OkakiiLauncher-mac-x64.zip` |
 
-Test on a Mac:
-1. Unzip, move `Okakii.app` to /Applications.
-2. First open: right-click -> Open (it isn't notarized), or `xattr -cr /Applications/Okakii.app`.
-3. Press Play on a 2021 game at okakii.lol.
+### Windows
+Run `OkakiiLauncher.exe` once. It installs itself and registers the `okakiiclient://` link, so
+**Play** buttons on the site open it. It keeps itself up to date.
 
-The launcher needs these on the server first (staged in `dist/server/`, not uploaded):
-`/download/OkakiiClient2021-mac.zip` + `/download/OkakiiClient2021-mac.version`.
-The zip is the 0.461.0.416397 Mac player (version-bd209e654cfd4bb4) patched by
-`Downloads/okakii-mac/patch_mac2021.py` (roblox.com -> okakii.lol, join-script keys -> PrivateKey2020).
+### macOS
+1. Unzip and move **Okakii.app** to your Applications folder.
+2. Open it once with **right-click → Open** (the app isn't notarized, so a normal double-click
+   is blocked the first time). If macOS says it's damaged, run `xattr -cr /Applications/Okakii.app`
+   in Terminal and try again.
+3. Press **Play** on a game at okakii.lol.
 
-Build: `cd mac && dotnet publish -c Release -r osx-arm64 --self-contained -p:UseAppHost=true -o ../build/mac-osx-arm64`
-(same for osx-x64), then `python build_mac.py`.
+The Mac launcher supports games that use the **2021** client.
+
+## What it does
+
+1. Reads the game and join ticket from the `okakiiclient://join?place=…&ticket=…&year=…` link.
+2. Downloads the client for that year if it's missing or out of date
+   (`/download/OkakiiClient<year>.version`, `-mac` on macOS).
+3. Starts the client and joins the server.
+
+On Windows the launcher also starts Okakii's anti-cheat and keeps watching it while you play.
+
+## Building
+
+### Windows (`windows/`)
+.NET 8 SDK, Windows Forms.
+```
+cd windows
+dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ../dist/windows
+```
+Release builds embed the obfuscated anti-cheat package, which isn't part of this repository. Point
+`GuardPublishZip` in `OkakiiLauncher.csproj` at your own build of it.
+
+### macOS (`mac/`)
+.NET 8 SDK + [Avalonia](https://avaloniaui.net/), buildable from any OS.
+```
+cd mac
+dotnet publish -c Release -r osx-arm64 --self-contained -p:UseAppHost=true -o ../build/mac-osx-arm64
+dotnet publish -c Release -r osx-x64   --self-contained -p:UseAppHost=true -o ../build/mac-osx-x64
+cd .. && python build_mac.py
+```
+`build_mac.py` assembles `Okakii.app` (Info.plist with the `okakiiclient` URL scheme, icon), signs it
+ad hoc with [rcodesign](https://github.com/indygreg/apple-platform-rs) (set `RCODESIGN` to its path)
+and writes the zips to `dist/mac/`. Needs Python with Pillow.
