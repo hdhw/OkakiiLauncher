@@ -217,7 +217,7 @@ namespace BubbaBloxLauncher
 
         // Bump together with dist/OkakiiLauncher.version on the site whenever a new launcher ships.
         // Installed launchers compare against it on every launch and replace themselves.
-        public const int LauncherVersion = 6;
+        public const int LauncherVersion = 7;
         public const string UpdatedFlag = "--updated";
 
         private bool TrySelfUpdate()
@@ -297,6 +297,7 @@ namespace BubbaBloxLauncher
                         return;
                     }
 
+                    ClearStaleAssetCache();
                     EnsureGuard();
                     LaunchClient();
                 }
@@ -432,6 +433,27 @@ namespace BubbaBloxLauncher
                     MessageBox.Show(message, "Okakii - Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     if (!this.IsDisposed) this.Close();
                 }));
+            }
+            catch { }
+        }
+
+        // The client caches downloaded assets forever. Bump this when the site starts serving fixed
+        // versions of assets players may already have cached (e.g. animations), to wipe them once.
+        private const string AssetCacheEpoch = "1";
+
+        private static void ClearStaleAssetCache()
+        {
+            try
+            {
+                string marker = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Okakii", ".asset-cache-epoch");
+                if (File.Exists(marker) && File.ReadAllText(marker).Trim() == AssetCacheEpoch) return;
+                if (Process.GetProcessesByName("OkakiiPlayerBeta").Length > 0 || Process.GetProcessesByName("RobloxPlayerBeta").Length > 0) return;
+                string cache = Path.Combine(Path.GetTempPath(), "Roblox", "http");
+                if (Directory.Exists(cache))
+                    foreach (var f in Directory.GetFiles(cache))
+                        try { File.Delete(f); } catch { }
+                Directory.CreateDirectory(Path.GetDirectoryName(marker));
+                File.WriteAllText(marker, AssetCacheEpoch);
             }
             catch { }
         }
