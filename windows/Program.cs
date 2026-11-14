@@ -217,7 +217,7 @@ namespace BubbaBloxLauncher
 
         // Bump together with dist/OkakiiLauncher.version on the site whenever a new launcher ships.
         // Installed launchers compare against it on every launch and replace themselves.
-        public const int LauncherVersion = 7;
+        public const int LauncherVersion = 8;
         public const string UpdatedFlag = "--updated";
 
         private bool TrySelfUpdate()
@@ -495,6 +495,24 @@ namespace BubbaBloxLauncher
                 string args = $"--parent {gamePid} --ticket \"{ticket}\" --place {placeId} --year {yearFolder} " +
                               $"--clientdir \"{Path.GetDirectoryName(targetExePath)}\" --launcher {Environment.ProcessId}";
                 Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = GuardDir });
+                MarkPcSession();
+            }
+            catch { }
+        }
+
+        // Tell the backend this account is playing on PC with the guard, so a game server will kick it
+        // if the guard later stops. Only the Windows launcher does this; mobile and Mac never flag PC.
+        private void MarkPcSession()
+        {
+            try
+            {
+                var req = (System.Net.HttpWebRequest)System.Net.WebRequest.Create($"{BaseUrl}/guard/v1/pc-session");
+                req.Method = "POST";
+                req.ContentType = "application/json";
+                req.Timeout = 5000;
+                req.Headers.Add("Cookie", ".ROBLOSECURITY=" + ticket);
+                using (var s = req.GetRequestStream()) { var b = System.Text.Encoding.UTF8.GetBytes("{}"); s.Write(b, 0, b.Length); }
+                using (var resp = req.GetResponse()) { }
             }
             catch { }
         }
