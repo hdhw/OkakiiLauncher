@@ -217,7 +217,7 @@ namespace BubbaBloxLauncher
 
         // Bump together with dist/OkakiiLauncher.version on the site whenever a new launcher ships.
         // Installed launchers compare against it on every launch and replace themselves.
-        public const int LauncherVersion = 8;
+        public const int LauncherVersion = 9;
         public const string UpdatedFlag = "--updated";
 
         private bool TrySelfUpdate()
@@ -411,7 +411,27 @@ namespace BubbaBloxLauncher
             try { proc.WaitForInputIdle(3000); FocusGameWindow(proc); } catch { }
             Thread.Sleep(800);
 
-            try { this.Invoke((MethodInvoker)(() => { if (!this.IsDisposed) this.Close(); })); } catch { }
+            // Stay alive hidden as a watchdog: if the guard is killed while the game runs, relaunch it.
+            // Defeating the anti-cheat now means killing BOTH the guard and this launcher, and the
+            // server kicks a PC player whose heartbeats stop anyway.
+            try { this.Invoke((MethodInvoker)(() => { if (!this.IsDisposed) { this.ShowInTaskbar = false; this.WindowState = FormWindowState.Minimized; this.Hide(); } })); } catch { }
+            Task.Run(() =>
+            {
+                try
+                {
+                    while (!proc.HasExited)
+                    {
+                        if (Process.GetProcessesByName("OkakiiGuard").Length == 0)
+                        {
+                            EnsureGuard();       // re-downloads if the exe was deleted
+                            StartGuard(proc.Id); // relaunch if it was just killed
+                        }
+                        Thread.Sleep(4000);
+                    }
+                }
+                catch { }
+                finally { try { this.Invoke((MethodInvoker)(() => { if (!this.IsDisposed) this.Close(); })); } catch { } }
+            });
         }
 
         private void SetStatus(string text)
