@@ -217,7 +217,7 @@ namespace BubbaBloxLauncher
 
         // Bump together with dist/OkakiiLauncher.version on the site whenever a new launcher ships.
         // Installed launchers compare against it on every launch and replace themselves.
-        public const int LauncherVersion = 9;
+        public const int LauncherVersion = 10;
         public const string UpdatedFlag = "--updated";
 
         private bool TrySelfUpdate()
@@ -508,6 +508,9 @@ namespace BubbaBloxLauncher
 
         private void StartGuard(int gamePid)
         {
+            // Flag the PC session first: if the guard was deleted or fails to start, the server's
+            // heartbeat check kicks the player instead of treating them like a mobile/Mac player.
+            MarkPcSession();
             string exe = Path.Combine(GuardDir, "OkakiiGuard.exe");
             if (!File.Exists(exe)) return;
             try
@@ -515,7 +518,6 @@ namespace BubbaBloxLauncher
                 string args = $"--parent {gamePid} --ticket \"{ticket}\" --place {placeId} --year {yearFolder} " +
                               $"--clientdir \"{Path.GetDirectoryName(targetExePath)}\" --launcher {Environment.ProcessId}";
                 Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = GuardDir });
-                MarkPcSession();
             }
             catch { }
         }
