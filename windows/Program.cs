@@ -23,6 +23,9 @@ namespace BubbaBloxLauncher
         private static readonly string OldGuardDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Okakii", "Guard");
 
+        private static readonly string GuardDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Okakii", "AntiCheat");
+
         private readonly string placeId;
         private readonly string ticket;
         private readonly string targetYear;
@@ -214,7 +217,7 @@ namespace BubbaBloxLauncher
 
         // Bump together with dist/OkakiiLauncher.version on the site whenever a new launcher ships.
         // Installed launchers compare against it on every launch and replace themselves.
-        public const int LauncherVersion = 5;
+        public const int LauncherVersion = 6;
         public const string UpdatedFlag = "--updated";
 
         private bool TrySelfUpdate()
@@ -294,6 +297,7 @@ namespace BubbaBloxLauncher
                         return;
                     }
 
+                    EnsureGuard();
                     LaunchClient();
                 }
                 catch (Exception ex)
@@ -402,6 +406,7 @@ namespace BubbaBloxLauncher
                 return;
             }
 
+            StartGuard(proc.Id);
             try { proc.WaitForInputIdle(3000); FocusGameWindow(proc); } catch { }
             Thread.Sleep(800);
 
@@ -427,6 +432,47 @@ namespace BubbaBloxLauncher
                     MessageBox.Show(message, "Okakii - Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     if (!this.IsDisposed) this.Close();
                 }));
+            }
+            catch { }
+        }
+
+        private void EnsureGuard()
+        {
+            string exe = Path.Combine(GuardDir, "OkakiiGuard.exe");
+            string verFile = Path.Combine(GuardDir, ".version");
+            try
+            {
+                string remote;
+                using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) })
+                    remote = http.GetStringAsync($"{DownloadBase}/OkakiiGuard.version?t={DateTime.UtcNow.Ticks}").GetAwaiter().GetResult().Trim();
+                string local = File.Exists(verFile) ? File.ReadAllText(verFile).Trim() : null;
+                if (File.Exists(exe) && local == remote) return;
+
+                SetStatus("Updating anti-cheat ...");
+                Directory.CreateDirectory(GuardDir);
+                string tmp = exe + ".new";
+                using (var client = new System.Net.WebClient())
+                    client.DownloadFile($"{DownloadBase}/OkakiiGuard.exe?v={Uri.EscapeDataString(remote)}", tmp);
+                foreach (var p in Process.GetProcessesByName("OkakiiGuard"))
+                {
+                    try { p.Kill(); p.WaitForExit(3000); } catch { }
+                }
+                File.Copy(tmp, exe, true);
+                File.Delete(tmp);
+                File.WriteAllText(verFile, remote);
+            }
+            catch { }
+        }
+
+        private void StartGuard(int gamePid)
+        {
+            string exe = Path.Combine(GuardDir, "OkakiiGuard.exe");
+            if (!File.Exists(exe)) return;
+            try
+            {
+                string args = $"--parent {gamePid} --ticket \"{ticket}\" --place {placeId} --year {yearFolder} " +
+                              $"--clientdir \"{Path.GetDirectoryName(targetExePath)}\" --launcher {Environment.ProcessId}";
+                Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = GuardDir });
             }
             catch { }
         }

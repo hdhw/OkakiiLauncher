@@ -35,6 +35,7 @@ The Mac launcher supports games that use the **2021** client.
 2. Downloads the client for that year if it's missing or out of date
    (`/download/OkakiiClient<year>.version`, `-mac` on macOS).
 3. Starts the client and joins the server.
+4. On Windows, starts Okakii's anti-cheat next to the client (downloaded from okakii.lol).
 
 
 ## Building
