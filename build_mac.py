@@ -8,7 +8,7 @@ import os, plistlib, shutil, subprocess, sys, zipfile
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-RCODESIGN = os.path.expanduser(r"~\tools\rcodesign\apple-codesign-0.29.0-i686-pc-windows-msvc\rcodesign.exe")
+RCODESIGN = os.environ.get("RCODESIGN") or os.path.expanduser(r"~\tools\rcodesign\apple-codesign-0.29.0-i686-pc-windows-msvc\rcodesign.exe")
 VERSION = "4"
 APP_NAME = "Okakii.app"
 EXE = "OkakiiLauncher"
