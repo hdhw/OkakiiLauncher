@@ -7,16 +7,8 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <!-- Same guard build the shipping launcher embeds (built + obfuscated by BubbaBlox/publish.ps1). -->
-    <GuardPublishZip>$(USERPROFILE)\Downloads\BubbaBlox\BubbaBlox\OkakiiAntiCheat\publish\OkakiiAntiCheat.zip</GuardPublishZip>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="..\assets\logo.png" LogicalName="logo.png" />
   </ItemGroup>
-  <Target Name="EmbedGuard" BeforeTargets="BeforeResolveReferences">
-    <Error Condition="!Exists('$(GuardPublishZip)')" Text="Guard zip not found at $(GuardPublishZip). Run BubbaBlox\publish.ps1 first." />
-    <ItemGroup>
-      <EmbeddedResource Include="$(GuardPublishZip)" LogicalName="OkakiiAntiCheat.zip" />
-    </ItemGroup>
-  </Target>
 </Project>

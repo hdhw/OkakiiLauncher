@@ -36,7 +36,6 @@ The Mac launcher supports games that use the **2021** client.
    (`/download/OkakiiClient<year>.version`, `-mac` on macOS).
 3. Starts the client and joins the server.
 
-On Windows the launcher also starts Okakii's anti-cheat and keeps watching it while you play.
 
 ## Building
 
@@ -46,8 +45,6 @@ On Windows the launcher also starts Okakii's anti-cheat and keeps watching it wh
 cd windows
 dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ../dist/windows
 ```
-Release builds embed the obfuscated anti-cheat package, which isn't part of this repository. Point
-`GuardPublishZip` in `OkakiiLauncher.csproj` at your own build of it.
 
 ### macOS (`mac/`)
 .NET 8 SDK + [Avalonia](https://avaloniaui.net/), buildable from any OS.

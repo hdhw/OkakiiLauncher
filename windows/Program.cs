@@ -19,15 +19,9 @@ namespace BubbaBloxLauncher
         public const string ExeName = "OkakiiPlayerBeta.exe";
         public const string DownloadBase = "https://okakii.lol/download";
 
-        public const string GuardExeName = "OkakiiAntiCheat.exe";
-        public const string GuardZipName = "OkakiiAntiCheat.zip";
-        // Bump when the guard build changes so an already-installed guard is refreshed.
-        private const string GuardInstallStamp = "v2-obfuscated";
-
-        public static readonly string GuardDir = Path.Combine(
+        // The old anti-cheat ("guard") is no longer shipped; launchers clean up what earlier versions installed.
+        private static readonly string OldGuardDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Okakii", "Guard");
-        public static readonly string GuardExePath = Path.Combine(GuardDir, GuardExeName);
-        private static readonly string GuardStampPath = Path.Combine(GuardDir, "guard.stamp");
 
         private readonly string placeId;
         private readonly string ticket;
@@ -37,12 +31,6 @@ namespace BubbaBloxLauncher
         private readonly string launcherPath;
         private Label status;
         private ClassicProgressBar bar;
-
-        // Reverse watchdog: the guard is what keeps the player honest, so if it goes away
-        // the game has to go with it. Tracked here so Watchdog() can observe it.
-        private static Process guardProc;
-        private static Process gameProc;
-        private static volatile bool gameIsRunning;
 
         public Launcher(string placeId, string ticket, string year, bool preview = false)
         {
@@ -205,7 +193,7 @@ namespace BubbaBloxLauncher
                 this.Show();
                 this.Refresh();
 
-                try { Task.Run(() => StartGuard()); } catch { }
+                try { Task.Run(() => RemoveOldGuard()); } catch { }
 
                 if (string.IsNullOrEmpty(placeId) || string.IsNullOrEmpty(ticket))
                 {
@@ -226,7 +214,7 @@ namespace BubbaBloxLauncher
 
         // Bump together with dist/OkakiiLauncher.version on the site whenever a new launcher ships.
         // Installed launchers compare against it on every launch and replace themselves.
-        public const int LauncherVersion = 4;
+        public const int LauncherVersion = 5;
         public const string UpdatedFlag = "--updated";
 
         private bool TrySelfUpdate()
@@ -392,8 +380,6 @@ namespace BubbaBloxLauncher
 
         private void LaunchClient()
         {
-            StartGuard();
-
             SetStatus("Starting Okakii ...");
 
             string yearFlag = targetYear == "2021" ? "&2021=true" : targetYear == "2020" ? "&2020=true" : targetYear == "2018" ? "&2018=true" : "";
@@ -418,10 +404,6 @@ namespace BubbaBloxLauncher
 
             try { proc.WaitForInputIdle(3000); FocusGameWindow(proc); } catch { }
             Thread.Sleep(800);
-
-            // Make sure the guard is actually up before we hand over, then keep watching it.
-            StartGuard();
-            BeginWatchdog(proc);
 
             try { this.Invoke((MethodInvoker)(() => { if (!this.IsDisposed) this.Close(); })); } catch { }
         }
@@ -449,207 +431,18 @@ namespace BubbaBloxLauncher
             catch { }
         }
 
-        private static void EnsureGuardInstalled()
+        private static void RemoveOldGuard()
         {
             try
             {
-                Directory.CreateDirectory(GuardDir);
-                var asm = System.Reflection.Assembly.GetExecutingAssembly();
-
-                string resName = null;
-                foreach (var n in asm.GetManifestResourceNames())
-                    if (n.EndsWith(GuardZipName, StringComparison.OrdinalIgnoreCase)) { resName = n; break; }
-
-                // Already have this exact build on disk - don't unpack 40MB every launch.
-                if (File.Exists(GuardStampPath) && File.Exists(GuardExePath))
+                foreach (var p in Process.GetProcessesByName("OkakiiAntiCheat"))
                 {
-                    try
-                    {
-                        if (File.ReadAllText(GuardStampPath).Trim() == GuardInstallStamp)
-                            return;
-                    }
-                    catch { }
-                }
-
-                if (resName != null)
-                {
-                    using (var stream = asm.GetManifestResourceStream(resName))
-                    {
-                        if (stream == null) return;
-
-                        string tmpZip = Path.Combine(GuardDir, GuardZipName + ".tmp");
-                        using (var fs = new FileStream(tmpZip, FileMode.Create, FileAccess.Write, FileShare.None))
-                            stream.CopyTo(fs);
-
-                        // Unpack into a staging dir first so a half-written guard can never
-                        // be the thing we launch.
-                        string stageDir = GuardDir + "\\.staging";
-                        if (Directory.Exists(stageDir)) Directory.Delete(stageDir, true);
-                        Directory.CreateDirectory(stageDir);
-                        ZipFile.ExtractToDirectory(tmpZip, stageDir, true);
-                        File.Delete(tmpZip);
-
-                        string stagedExe = Path.Combine(stageDir, GuardExeName);
-                        if (!File.Exists(stagedExe))
-                        {
-                            Directory.Delete(stageDir, true);
-                            return;
-                        }
-
-                        // Overwrite in place, keeping the directory so we never wipe the
-                        // folder out from under a running guard.
-                        foreach (var f in Directory.GetFiles(stageDir))
-                        {
-                            string dest = Path.Combine(GuardDir, Path.GetFileName(f));
-                            try { File.Copy(f, dest, true); } catch { }
-                        }
-                        foreach (var d in Directory.GetDirectories(stageDir))
-                        {
-                            string dest = Path.Combine(GuardDir, Path.GetFileName(d));
-                            try { CopyDirectory(d, dest); } catch { }
-                        }
-                        Directory.Delete(stageDir, true);
-
-                        File.WriteAllText(GuardStampPath, GuardInstallStamp);
-                    }
-                    return;
-                }
-
-                string beside = Path.Combine(AppContext.BaseDirectory, GuardExeName);
-                if (File.Exists(beside) && !string.Equals(beside, GuardExePath, StringComparison.OrdinalIgnoreCase))
-                    File.Copy(beside, GuardExePath, true);
-            }
-            catch { }
-        }
-
-        private static void CopyDirectory(string source, string dest)
-        {
-            Directory.CreateDirectory(dest);
-            foreach (var f in Directory.GetFiles(source))
-                File.Copy(f, Path.Combine(dest, Path.GetFileName(f)), true);
-            foreach (var d in Directory.GetDirectories(source))
-                CopyDirectory(d, Path.Combine(dest, Path.GetFileName(d)));
-        }
-
-        private static void StartGuard()
-        {
-            try
-            {
-                EnsureGuardInstalled();
-                if (!File.Exists(GuardExePath)) return;
-
-                var existing = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(GuardExeName));
-                if (existing.Length > 0)
-                {
-                    // Reuse a guard that is already up rather than spawning a second one.
-                    try { guardProc = existing[0]; } catch { }
-                    foreach (var p in existing) { try { if (p.Id != guardProc?.Id) p.Dispose(); } catch { } }
-                    return;
-                }
-
-                string gameName = Path.GetFileNameWithoutExtension(ExeName);
-                var psi = new ProcessStartInfo
-                {
-                    FileName = GuardExePath,
-                    Arguments = $"--game \"{gameName}\" --parent {Process.GetCurrentProcess().Id}",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    WorkingDirectory = GuardDir
-                };
-                // Keep the handle: the watchdog needs it to notice the guard dying.
-                guardProc = Process.Start(psi);
-            }
-            catch { }
-        }
-
-        /// <summary>
-        /// Watches the guard for the lifetime of the game. If the guard exits for any reason -
-        /// closed from task manager, crashed, killed - the client is terminated too, because a
-        /// running client with no guard means someone is deliberately cheating.
-        /// </summary>
-        private static void Watchdog()
-        {
-            var guardName = Path.GetFileNameWithoutExtension(GuardExeName);
-            var gameName = Path.GetFileNameWithoutExtension(ExeName);
-
-            try
-            {
-                while (gameIsRunning)
-                {
-                    Thread.Sleep(1000);
-
-                    try { if (gameProc != null && gameProc.HasExited) break; }
-                    catch { break; }
-
-                    bool guardAlive = false;
-                    try
-                    {
-                        if (guardProc != null) { guardProc.Refresh(); guardAlive = !guardProc.HasExited; }
-                        if (!guardAlive)
-                        {
-                            // handle may be stale - fall back to asking the OS
-                            var found = Process.GetProcessesByName(guardName);
-                            guardAlive = found.Length > 0;
-                            foreach (var f in found) f.Dispose();
-                        }
-                    }
-                    catch { }
-
-                    if (!guardAlive)
-                    {
-                        KillGame(gameName);
-                        break;
-                    }
-                }
-            }
-            catch { }
-            finally
-            {
-                Environment.Exit(0);
-            }
-        }
-
-        private static void KillGame(string gameName)
-        {
-            try
-            {
-                // Try the tracked handle first so we never kill an unrelated window that
-                // happens to share the name.
-                try
-                {
-                    if (gameProc != null && !gameProc.HasExited)
-                    {
-                        gameProc.Kill();
-                        gameProc.WaitForExit(5000);
-                    }
-                }
-                catch { }
-
-                foreach (var p in Process.GetProcessesByName(gameName))
-                {
-                    try { p.Kill(); } catch { }
+                    try { p.Kill(); p.WaitForExit(3000); } catch { }
                     try { p.Dispose(); } catch { }
                 }
+                if (Directory.Exists(OldGuardDir)) Directory.Delete(OldGuardDir, true);
             }
             catch { }
-        }
-
-        private void BeginWatchdog(Process game)
-        {
-            gameProc = game;
-            gameIsRunning = true;
-            // The launcher window closes, but the process stays alive (hidden) so this
-            // thread can keep enforcing the guard for as long as the game runs.
-            this.FormClosing += (s, e) =>
-            {
-                if (gameIsRunning)
-                {
-                    e.Cancel = true;
-                    this.Hide();
-                }
-            };
-            var t = new Thread(Watchdog) { IsBackground = false, Name = "OkakiiGuardWatchdog" };
-            t.Start();
         }
 
         private void FocusGameWindow(Process p)
