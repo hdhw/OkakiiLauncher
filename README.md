@@ -41,11 +41,13 @@ The Mac launcher supports games that use the **2021** client.
 ## Building
 
 ### Windows (`windows/`)
-.NET 8 SDK, Windows Forms.
+Rust (MSVC toolchain), raw Win32 — a ~2 MB exe with no runtime.
 ```
 cd windows
-dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ../dist/windows
+cargo build --release
 ```
+Output: `windows/target/release/OkakiiLauncher.exe`. `OkakiiLauncher.exe --preview` shows the
+window without installing anything (`--preview --done` shows the installed screen).
 
 ### macOS (`mac/`)
 .NET 8 SDK + [Avalonia](https://avaloniaui.net/), buildable from any OS.
