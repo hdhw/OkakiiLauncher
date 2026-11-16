@@ -53,8 +53,8 @@ window without installing anything (`--preview --done` shows the installed scree
 .NET 8 SDK + [Avalonia](https://avaloniaui.net/), buildable from any OS.
 ```
 cd mac
-dotnet publish -c Release -r osx-arm64 --self-contained -p:UseAppHost=true -o ../build/mac-osx-arm64
-dotnet publish -c Release -r osx-x64   --self-contained -p:UseAppHost=true -o ../build/mac-osx-x64
+dotnet publish -c Release -r osx-arm64 --self-contained -p:UseAppHost=true -p:PublishSingleFile=true -p:DebugType=none -o ../build/mac-osx-arm64
+dotnet publish -c Release -r osx-x64   --self-contained -p:UseAppHost=true -p:PublishSingleFile=true -p:DebugType=none -o ../build/mac-osx-x64
 cd .. && python build_mac.py
 ```
 `build_mac.py` assembles `Okakii.app` (Info.plist with the `okakiiclient` URL scheme, icon), signs it
