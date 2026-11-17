@@ -387,11 +387,15 @@ fn clear_stale_asset_cache() {
     let _ = fs::write(marker, ASSET_CACHE_EPOCH);
 }
 
-fn ensure_guard() {
+fn guard_version() -> Option<String> {
+    get_text(&format!("{DOWNLOAD_BASE}/OkakiiGuard.version?t={}", ticks()), Duration::from_secs(5))
+}
+
+fn ensure_guard(remote: Option<String>) {
     let dir = guard_dir();
     let exe = dir.join("OkakiiGuard.exe");
     let ver = dir.join(".version");
-    let Some(remote) = get_text(&format!("{DOWNLOAD_BASE}/OkakiiGuard.version?t={}", ticks()), Duration::from_secs(5)) else { return };
+    let Some(remote) = remote else { return };
     if exe.exists() && fs::read_to_string(&ver).is_ok_and(|l| l.trim() == remote) {
         return;
     }
@@ -476,7 +480,7 @@ fn launch_client(job: &Job, exe: &Path) {
     unsafe { ShowWindowAsync(hwnd(), SW_HIDE) };
     while matches!(child.try_wait(), Ok(None)) {
         if pids("OkakiiGuard.exe").is_empty() {
-            ensure_guard();
+            ensure_guard(guard_version());
             start_guard(job, pid, client_dir);
         }
         thread::sleep(Duration::from_secs(4));
@@ -485,11 +489,14 @@ fn launch_client(job: &Job, exe: &Path) {
 }
 
 fn launch(job: Job) {
+    let client_url = format!("{DOWNLOAD_BASE}/OkakiiClient{}.version", job.year);
+    let client_version = thread::spawn(move || get_text(&client_url, Duration::from_secs(30)));
+    let guard_remote = thread::spawn(guard_version);
     if try_self_update() {
         return close();
     }
     let exe = resolve_client_exe(job.year);
-    let remote = get_text(&format!("{DOWNLOAD_BASE}/OkakiiClient{}.version", job.year), Duration::from_secs(30));
+    let remote = client_version.join().ok().flatten();
     let local = fs::read_to_string(version_file(job.year)).ok().map(|s| s.trim().to_string());
     if !exe.exists() || (remote.is_some() && local != remote) {
         if let Err(e) = install_client(job.year, remote.as_deref()) {
@@ -504,7 +511,7 @@ fn launch(job: Job) {
         return error_and_close(&format!("Couldn't install the client.\nExpected:\n{}", exe.display()));
     }
     clear_stale_asset_cache();
-    ensure_guard();
+    ensure_guard(guard_remote.join().ok().flatten());
     launch_client(&job, &exe);
 }
 
